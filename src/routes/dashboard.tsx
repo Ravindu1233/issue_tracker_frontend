@@ -1,26 +1,25 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   deleteIssue,
+  exportIssues,
+  getIssue,
+  getIssueStats,
   listIssues,
   saveIssue,
   signOut,
   type Issue,
+  type IssueStats,
+  type Pagination,
   type Priority,
   type Status,
-} from "@/lib/local-store";
+} from "@/lib/api-client";
 import { useAuth } from "@/lib/use-auth";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { Label } from "@/components/label";
 import { Textarea } from "@/components/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/card";
+import { Card, CardContent } from "@/components/card";
 import { Badge } from "@/components/badge";
 import {
   Select,
@@ -56,14 +55,20 @@ import {
 } from "@/components/table";
 import {
   Bug,
-  LogOut,
-  Plus,
-  Search,
-  Pencil,
-  Trash2,
+  CheckCircle2,
   CircleDot,
   Clock,
-  CheckCircle2,
+  Download,
+  Eye,
+  Flag,
+  ListChecks,
+  LogOut,
+  Pencil,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -78,73 +83,119 @@ const issueSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   description: z.string().max(2000).optional(),
   priority: z.enum(["low", "medium", "high"]),
-  status: z.enum(["open", "in_progress", "resolved"]),
+  status: z.enum(["open", "in_progress", "resolved", "closed"]),
 });
+
+const emptyStats: IssueStats = {
+  total: 0,
+  open: 0,
+  in_progress: 0,
+  resolved: 0,
+  closed: 0,
+};
+
+const emptyPagination: Pagination = {
+  totalItems: 0,
+  totalPages: 1,
+  currentPage: 1,
+  limit: PAGE_SIZE,
+  hasNextPage: false,
+  hasPreviousPage: false,
+};
+
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const displayName = user?.full_name || user?.email || "";
+
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [stats, setStats] = useState<IssueStats>(emptyStats);
+  const [pagination, setPagination] = useState<Pagination>(emptyPagination);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+  const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all");
+  const [page, setPage] = useState(1);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewing, setViewing] = useState<Issue | null>(null);
+  const [editing, setEditing] = useState<Issue | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<{
+    issue: Issue | null;
+    draft?: IssueDraft;
+    status: Extract<Status, "resolved" | "closed">;
+  } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Issue | null>(null);
+  const [issuesLoading, setIssuesLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate({ to: "/login" });
   }, [authLoading, user, navigate]);
 
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
-  const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all");
-  const [page, setPage] = useState(1);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Issue | null>(null);
-  const [pendingResolve, setPendingResolve] = useState<IssueDraft | null>(null);
-  const [issuesLoading, setIssuesLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, priorityFilter]);
+
+  const refreshStats = useCallback(() => {
+    if (!user) return;
+    getIssueStats()
+      .then(setStats)
+      .catch((err) => {
+        toast.error(
+          err instanceof Error ? err.message : "Unable to load stats",
+        );
+      });
+  }, [user]);
 
   const refreshIssues = useCallback(() => {
     if (!user) return;
 
     setIssuesLoading(true);
-    listIssues(user.id)
-      .then(setIssues)
+    listIssues({
+      search: debouncedSearch,
+      status: statusFilter,
+      priority: priorityFilter,
+      page,
+      limit: PAGE_SIZE,
+    })
+      .then((data) => {
+        setIssues(data.issues);
+        setPagination(data.pagination);
+      })
       .catch((err) => {
-        toast.error(err instanceof Error ? err.message : "Unable to load issues");
+        toast.error(
+          err instanceof Error ? err.message : "Unable to load issues",
+        );
       })
       .finally(() => setIssuesLoading(false));
-  }, [user]);
+  }, [debouncedSearch, page, priorityFilter, statusFilter, user]);
 
   useEffect(() => {
     refreshIssues();
   }, [refreshIssues]);
 
-  const stats = useMemo(
-    () => ({
-      open: issues.filter((i) => i.status === "open").length,
-      in_progress: issues.filter((i) => i.status === "in_progress").length,
-      resolved: issues.filter((i) => i.status === "resolved").length,
-    }),
-    [issues],
-  );
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return issues.filter(
-      (i) =>
-        (statusFilter === "all" || i.status === statusFilter) &&
-        (priorityFilter === "all" || i.priority === priorityFilter) &&
-        (!q || i.title.toLowerCase().includes(q)),
-    );
-  }, [issues, search, statusFilter, priorityFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageItems = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
-  );
-
   useEffect(() => {
-    setPage(1);
-  }, [search, statusFilter, priorityFilter]);
+    refreshStats();
+  }, [refreshStats]);
 
   const handleSave = async (draft: IssueDraft, id?: string) => {
     if (!user) return;
@@ -152,6 +203,7 @@ function DashboardPage() {
     try {
       await saveIssue(user.id, draft, id);
       refreshIssues();
+      refreshStats();
       toast.success(id ? "Issue updated" : "Issue created");
       setDialogOpen(false);
       setEditing(null);
@@ -162,37 +214,74 @@ function DashboardPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!user) return;
+  const handleStatusChange = async (issue: Issue | null, status: Status) => {
+    if (!issue) return;
+    await handleSave(
+      {
+        title: issue.title,
+        description: issue.description,
+        priority: issue.priority,
+        status,
+      },
+      issue.id,
+    );
+  };
+
+  const handleDelete = async (issue: Issue | null) => {
+    if (!user || !issue) return;
     try {
-      await deleteIssue(user.id, id);
+      await deleteIssue(user.id, issue.id);
       refreshIssues();
+      refreshStats();
       toast.success("Issue deleted");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Unable to delete issue");
+      toast.error(
+        err instanceof Error ? err.message : "Unable to delete issue",
+      );
     }
   };
 
-  const handleLogout = () => {
-    signOut();
-    navigate({ to: "/login" });
+  const handleExport = async (format: "csv" | "json") => {
+    try {
+      const output = await exportIssues(format, {
+        search: debouncedSearch,
+        status: statusFilter,
+        priority: priorityFilter,
+      });
+      const blob = new Blob([output], {
+        type: format === "csv" ? "text/csv" : "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `issues.${format}`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Unable to export issues",
+      );
+    }
   };
 
-  const openCreate = () => {
-    setEditing(null);
-    setDialogOpen(true);
-  };
-  const openEdit = (issue: Issue) => {
-    setEditing(issue);
-    setDialogOpen(true);
+  const openView = async (issue: Issue) => {
+    try {
+      setViewing(await getIssue(issue.id));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to load issue");
+    }
   };
 
   const onSubmit = (draft: IssueDraft) => {
-    const wasNotResolved = !editing || editing.status !== "resolved";
-    if (draft.status === "resolved" && wasNotResolved) {
-      setPendingResolve(draft);
+    const changedToFinal =
+      draft.status !== editing?.status &&
+      (draft.status === "resolved" || draft.status === "closed");
+
+    if (changedToFinal) {
+      setPendingStatus({ issue: editing, draft, status: draft.status });
       return;
     }
+
     handleSave(draft, editing?.id);
   };
 
@@ -203,7 +292,7 @@ function DashboardPage() {
   return (
     <div className="min-h-screen bg-muted/20">
       <header className="border-b bg-background">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        <div className="container mx-auto flex h-[60px] items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Bug className="h-4 w-4" />
@@ -211,51 +300,88 @@ function DashboardPage() {
             <span className="text-lg font-semibold">Tracely</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-muted-foreground sm:inline">
-              {user.email}
+            <span className="hidden max-w-[280px] truncate text-sm font-medium text-muted-foreground sm:inline">
+              {displayName}
             </span>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-900 text-[10px] font-semibold text-blue-100">
+              {getInitials(displayName)}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                signOut();
+                navigate({ to: "/login" });
+              }}
+            >
               <LogOut className="mr-2 h-4 w-4" /> Logout
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto space-y-6 px-4 py-8">
-        <div className="grid max-w-4xl gap-3 sm:grid-cols-3">
+      <main className="container mx-auto space-y-4 px-4 py-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-normal">Issues</h1>
+            <p className="text-sm text-muted-foreground">
+              Track and manage all your team's issues
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => handleExport("csv")}>
+              <Download className="mr-2 h-4 w-4" /> CSV
+            </Button>
+            <Button variant="outline" onClick={() => handleExport("json")}>
+              <Download className="mr-2 h-4 w-4" /> JSON
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" /> Create issue
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-5">
+          <StatCard
+            label="Total"
+            value={stats.total}
+            icon={<ListChecks className="h-5 w-5" />}
+            color="text-slate-700 bg-slate-100 dark:text-slate-200 dark:bg-slate-800"
+          />
           <StatCard
             label="Open"
             value={stats.open}
             icon={<CircleDot className="h-5 w-5" />}
-            color="text-red-600 bg-red-50 dark:bg-red-950/30"
+            color="text-red-700 bg-red-50 dark:text-red-600 dark:bg-red-50"
           />
           <StatCard
-            label="In Progress"
+            label="In progress"
             value={stats.in_progress}
             icon={<Clock className="h-5 w-5" />}
-            color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
+            color="text-sky-700 bg-sky-50 dark:text-sky-600 dark:bg-sky-50"
           />
           <StatCard
             label="Resolved"
             value={stats.resolved}
             icon={<CheckCircle2 className="h-5 w-5" />}
-            color="text-green-600 bg-green-50 dark:bg-green-950/30"
+            color="text-green-700 bg-green-50 dark:text-green-700 dark:bg-green-50"
+          />
+          <StatCard
+            label="Closed"
+            value={stats.closed}
+            icon={<XCircle className="h-5 w-5" />}
+            color="text-zinc-700 bg-zinc-100 dark:text-zinc-200 dark:bg-zinc-800"
           />
         </div>
 
         <Card>
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Issues</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Track and manage all your team's issues
-              </p>
-            </div>
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" /> Create Issue
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4">
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -263,32 +389,35 @@ function DashboardPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by title..."
-                  className="pl-9"
+                  className="h-9 pl-9"
                 />
               </div>
               <Select
                 value={statusFilter}
                 onValueChange={(v) => setStatusFilter(v as Status | "all")}
               >
-                <SelectTrigger className="sm:w-44">
+                <SelectTrigger className="h-9 justify-start gap-2 sm:w-36 [&>svg]:ml-auto">
+                  <SlidersHorizontal className="h-4 w-4" />
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="all">Status</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
                   <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
                 </SelectContent>
               </Select>
               <Select
                 value={priorityFilter}
                 onValueChange={(v) => setPriorityFilter(v as Priority | "all")}
               >
-                <SelectTrigger className="sm:w-44">
+                <SelectTrigger className="h-9 justify-start gap-2 sm:w-32 [&>svg]:ml-auto">
+                  <Flag className="h-4 w-4" />
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="all">Priority</SelectItem>
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="high">High</SelectItem>
@@ -301,57 +430,103 @@ function DashboardPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>
+                    <TableHead className="w-44">Reporter</TableHead>
                     <TableHead className="w-32">Priority</TableHead>
                     <TableHead className="w-36">Status</TableHead>
                     <TableHead className="w-36">Created</TableHead>
-                    <TableHead className="w-28 text-right">Actions</TableHead>
+                    <TableHead className="w-44 text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pageItems.length === 0 ? (
+                  {issues.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={5}
+                        colSpan={6}
                         className="py-12 text-center text-muted-foreground"
                       >
                         {issuesLoading
                           ? "Loading issues..."
-                          : issues.length === 0
-                            ? "No issues yet. Create your first one."
-                            : "No issues match your filters."}
+                          : "No issues found."}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    pageItems.map((i) => (
-                      <TableRow key={i.id}>
-                        <TableCell className="font-medium">{i.title}</TableCell>
-                        <TableCell>
-                          <PriorityBadge p={i.priority} />
+                    issues.map((issue) => (
+                      <TableRow key={issue.id}>
+                        <TableCell className="font-medium">
+                          {issue.title}
+                        </TableCell>
+                        <TableCell className="max-w-44 truncate text-sm text-muted-foreground">
+                          {issue.reporterName}
                         </TableCell>
                         <TableCell>
-                          <StatusBadge s={i.status} />
+                          <PriorityBadge p={issue.priority} />
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {new Date(i.created_at).toLocaleDateString(
+                        <TableCell>
+                          <StatusBadge s={issue.status} />
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(issue.created_at).toLocaleDateString(
                             undefined,
-                            { year: "numeric", month: "short", day: "numeric" },
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            },
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEdit(i)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(i.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        <TableCell>
+                          <div className="flex w-full items-center justify-end gap-1 whitespace-nowrap">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openView(issue)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditing(issue);
+                                setDialogOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {issue.status !== "resolved" &&
+                              issue.status !== "closed" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setPendingStatus({
+                                      issue,
+                                      status: "resolved",
+                                    })
+                                  }
+                                >
+                                  <CheckCircle2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            {issue.status !== "closed" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() =>
+                                  setPendingStatus({ issue, status: "closed" })
+                                }
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setPendingDelete(issue)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -362,27 +537,31 @@ function DashboardPage() {
 
             <div className="flex items-center justify-between text-sm">
               <p className="text-muted-foreground">
-                {filtered.length === 0
+                {pagination.totalItems === 0
                   ? "0 results"
-                  : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}-${Math.min(currentPage * PAGE_SIZE, filtered.length)} of ${filtered.length}`}
+                  : `Showing ${(pagination.currentPage - 1) * pagination.limit + 1}-${Math.min(
+                      pagination.currentPage * pagination.limit,
+                      pagination.totalItems,
+                    )} of ${pagination.totalItems}`}
               </p>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={!pagination.hasPreviousPage}
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
                 >
                   Previous
                 </Button>
                 <span className="text-muted-foreground">
-                  Page {currentPage} of {totalPages}
+                  Page {pagination.currentPage} of{" "}
+                  {Math.max(1, pagination.totalPages)}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={!pagination.hasNextPage}
+                  onClick={() => setPage((value) => value + 1)}
                 >
                   Next
                 </Button>
@@ -394,40 +573,153 @@ function DashboardPage() {
 
       <IssueDialog
         open={dialogOpen}
-        onOpenChange={(o) => {
-          setDialogOpen(o);
-          if (!o) setEditing(null);
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditing(null);
         }}
         initial={editing}
         onSubmit={onSubmit}
         submitting={submitting}
       />
 
+      <IssueDetailsDialog
+        issue={viewing}
+        onOpenChange={(open) => {
+          if (!open) setViewing(null);
+        }}
+      />
+
       <AlertDialog
-        open={!!pendingResolve}
-        onOpenChange={(o) => !o && setPendingResolve(null)}
+        open={!!pendingStatus}
+        onOpenChange={(open) => !open && setPendingStatus(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Mark issue as Resolved?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Mark issue as{" "}
+              {pendingStatus?.status === "closed" ? "Closed" : "Resolved"}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will close the issue and move it to the Resolved column. You
-              can still edit it later.
+              This updates the issue status and keeps the issue available in the
+              list and detail view.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingResolve) handleSave(pendingResolve, editing?.id);
-                setPendingResolve(null);
+                if (pendingStatus?.draft) {
+                  handleSave(pendingStatus.draft, editing?.id);
+                } else if (pendingStatus) {
+                  handleStatusChange(pendingStatus.issue, pendingStatus.status);
+                }
+                setPendingStatus(null);
               }}
             >
-              Yes, resolve
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this issue?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the issue from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                handleDelete(pendingDelete);
+                setPendingDelete(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function IssueDetailsDialog({
+  issue,
+  onOpenChange,
+}: {
+  issue: Issue | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={!!issue} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Issue Details</DialogTitle>
+        </DialogHeader>
+        {issue && (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">Title</p>
+              <p className="font-medium">{issue.title}</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Info label="Reporter" value={issue.reporterName} />
+              <Info
+                label="Created"
+                value={new Date(issue.created_at).toLocaleDateString(
+                  undefined,
+                  {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  },
+                )}
+              />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Priority
+                </p>
+                <PriorityBadge p={issue.priority} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Status
+                </p>
+                <StatusBadge s={issue.status} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">
+                Description
+              </p>
+              <p className="whitespace-pre-wrap text-sm leading-6">
+                {issue.description || "No description provided."}
+              </p>
+            </div>
+            <DialogFooter>
+              <Button type="button" onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p>{value}</p>
     </div>
   );
 }
@@ -489,6 +781,10 @@ function StatusBadge({ s }: { s: Status }) {
     resolved: {
       label: "Resolved",
       cls: "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-300",
+    },
+    closed: {
+      label: "Closed",
+      cls: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-200",
     },
   }[s];
   return (
@@ -610,6 +906,7 @@ function IssueDialog({
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
-import { register } from "@/lib/local-store";
+import { register } from "@/lib/api-client";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { Label } from "@/components/label";
@@ -17,12 +17,14 @@ import { Bug } from "lucide-react";
 export const Route = createFileRoute("/register")({ component: RegisterPage });
 
 const schema = z.object({
+  fullName: z.string().trim().min(1, "Full name is required").max(255),
   email: z.string().email("Enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 function RegisterPage() {
   const navigate = useNavigate();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -31,14 +33,14 @@ function RegisterPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    const parsed = schema.safeParse({ email, password });
+    const parsed = schema.safeParse({ fullName, email, password });
     if (!parsed.success) {
       setError(parsed.error.issues[0].message);
       return;
     }
     setLoading(true);
     try {
-      await register(email, password);
+      await register(fullName.trim(), email, password);
       navigate({ to: "/dashboard" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create account");
@@ -59,6 +61,16 @@ function RegisterPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="full-name">Full name</Label>
+              <Input
+                id="full-name"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your full name"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

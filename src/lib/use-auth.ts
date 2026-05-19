@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getCurrentUser, type LocalUser } from "@/lib/local-store";
+import { getCurrentUser, type LocalUser } from "@/lib/api-client";
 
 export function useAuth() {
   const [user, setUser] = useState<LocalUser | null>(null);

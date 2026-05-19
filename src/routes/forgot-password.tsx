@@ -26,7 +26,7 @@ import {
   requestPasswordResetOtp,
   resetPassword,
   verifyPasswordResetOtp,
-} from "@/lib/local-store";
+} from "@/lib/api-client";
 
 export const Route = createFileRoute("/forgot-password")({
   component: ForgotPasswordPage,
