@@ -188,6 +188,39 @@ export async function register(email: string, password: string) {
   return user;
 }
 
+export async function requestPasswordResetOtp(email: string) {
+  await apiRequest<{ message: string }>(
+    "/auth/forgot-password",
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    },
+    false,
+  );
+}
+
+export async function verifyPasswordResetOtp(email: string, otp: string) {
+  await apiRequest<{ message: string }>(
+    "/auth/verify-otp",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    },
+    false,
+  );
+}
+
+export async function resetPassword(email: string, otp: string, password: string) {
+  await apiRequest<{ message: string }>(
+    "/auth/reset-password",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, otp, password }),
+    },
+    false,
+  );
+}
+
 export function signOut() {
   clearSession();
 }
