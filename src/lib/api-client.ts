@@ -118,6 +118,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "http://localhost:5000/api";
 const TOKEN_KEY = "tracely_auth_token";
 const CURRENT_USER_KEY = "tracely_current_user";
+const DARK_MODE_KEY = "tracely_dark_mode";
 
 const isBrowser = () => typeof window !== "undefined";
 
@@ -136,6 +137,17 @@ function clearSession() {
   if (!isBrowser()) return;
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(CURRENT_USER_KEY);
+}
+
+export function getStoredDarkMode() {
+  if (!isBrowser()) return null;
+  const value = window.localStorage.getItem(DARK_MODE_KEY);
+  return value === null ? null : value === "true";
+}
+
+function storeDarkMode(value: boolean) {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(DARK_MODE_KEY, String(value));
 }
 
 function toLocalUser(user: ApiUser): LocalUser {
@@ -396,7 +408,9 @@ export async function deleteIssue(_userId: string, id: string) {
 
 export async function getSettings() {
   const data = await apiRequest<{ settings: ApiUserSettings }>("/settings");
-  return toLocalSettings(data.settings);
+  const settings = toLocalSettings(data.settings);
+  storeDarkMode(settings.dark_mode);
+  return settings;
 }
 
 export async function updateSettings(settings: Partial<Pick<UserSettings, "dark_mode" | "show_notifications" | "email_notifications">>) {
@@ -405,7 +419,9 @@ export async function updateSettings(settings: Partial<Pick<UserSettings, "dark_
     body: JSON.stringify(settings),
   });
 
-  return toLocalSettings(data.settings);
+  const updatedSettings = toLocalSettings(data.settings);
+  storeDarkMode(updatedSettings.dark_mode);
+  return updatedSettings;
 }
 
 export async function listNotifications(params: { page?: number; limit?: number; unreadOnly?: boolean } = {}) {

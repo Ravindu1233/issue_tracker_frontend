@@ -15,6 +15,7 @@ import {
   deleteIssue,
   getIssue,
   getIssueStats,
+  getStoredDarkMode,
   getSettings,
   listNotifications,
   listIssues,
@@ -162,7 +163,9 @@ export function DashboardShell({ view }: { view: View }) {
   }, [priorityFilter, statusFilter]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", settings?.dark_mode ?? false);
+    const darkMode = settings?.dark_mode ?? getStoredDarkMode();
+    if (darkMode === null) return;
+    document.documentElement.classList.toggle("dark", darkMode);
   }, [settings?.dark_mode]);
 
   const refreshStats = useCallback(() => {
@@ -467,10 +470,6 @@ export function DashboardShell({ view }: { view: View }) {
               stats={stats}
               issues={allIssues}
               loading={statsLoading || allIssuesLoading}
-              settings={settings}
-              settingsLoading={settingsLoading}
-              savingSetting={savingSetting}
-              onSettingChange={handleSettingChange}
             />
           )}
 

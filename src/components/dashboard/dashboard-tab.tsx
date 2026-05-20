@@ -1,32 +1,16 @@
 import { CheckCircle2, CircleDot, Clock, ListChecks, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/card";
 import { DashboardOverview } from "@/components/dashboard-overview";
-import { SettingsPanel } from "@/components/dashboard/settings-panel";
 import { Skeleton } from "@/components/skeleton";
-import type { Issue, IssueStats, UserSettings } from "@/lib/api-client";
+import type { Issue, IssueStats } from "@/lib/api-client";
 
 type DashboardTabProps = {
   stats: IssueStats;
   issues: Issue[];
   loading: boolean;
-  settings: UserSettings | null;
-  settingsLoading: boolean;
-  savingSetting: "dark_mode" | "show_notifications" | "email_notifications" | null;
-  onSettingChange: (
-    key: "dark_mode" | "show_notifications" | "email_notifications",
-    value: boolean,
-  ) => void;
 };
 
-export function DashboardTab({
-  stats,
-  issues,
-  loading,
-  settings,
-  settingsLoading,
-  savingSetting,
-  onSettingChange,
-}: DashboardTabProps) {
+export function DashboardTab({ stats, issues, loading }: DashboardTabProps) {
   if (loading) {
     return (
       <div className="space-y-3">
@@ -63,12 +47,6 @@ export function DashboardTab({
         <StatCard label="Closed" value={stats.closed} icon={<XCircle className="h-4 w-4" />} color="text-zinc-700 bg-zinc-100 dark:text-zinc-200 dark:bg-zinc-800" />
       </div>
       <DashboardOverview issues={issues} />
-      <SettingsPanel
-        settings={settings}
-        loading={settingsLoading}
-        saving={savingSetting}
-        onChange={onSettingChange}
-      />
     </div>
   );
 }
