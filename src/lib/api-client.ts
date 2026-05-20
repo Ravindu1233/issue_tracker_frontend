@@ -381,6 +381,13 @@ export async function saveIssue(
   });
 }
 
+export async function updateIssueStatus(id: string, status: Status) {
+  await apiRequest(`/issues/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ status: toApiStatus(status) }),
+  });
+}
+
 export async function deleteIssue(_userId: string, id: string) {
   await apiRequest(`/issues/${id}`, {
     method: "DELETE",

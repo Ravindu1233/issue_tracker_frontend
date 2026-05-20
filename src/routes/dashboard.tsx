@@ -22,6 +22,7 @@ import {
   markNotificationRead,
   saveIssue,
   signOut,
+  updateIssueStatus,
   updateSettings,
   type AppNotification,
   type Issue,
@@ -334,15 +335,16 @@ export function DashboardShell({ view }: { view: View }) {
 
   const handleStatusChange = async (issue: Issue | null, status: Status) => {
     if (!issue) return;
-    await handleSave(
-      {
-        title: issue.title,
-        description: issue.description,
-        priority: issue.priority,
-        status,
-      },
-      issue.id,
-    );
+    setSubmitting(true);
+    try {
+      await updateIssueStatus(issue.id, status);
+      refreshDashboard();
+      toast.success("Issue status updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to update issue status");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDelete = async (issue: Issue | null) => {
@@ -412,7 +414,7 @@ export function DashboardShell({ view }: { view: View }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between border-b bg-background px-4">
+        <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b bg-background px-3 py-3 sm:px-4 md:h-16 md:flex-nowrap md:py-0">
           <div className="flex items-center gap-2 md:hidden">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Bug className="h-4 w-4" />
@@ -420,7 +422,7 @@ export function DashboardShell({ view }: { view: View }) {
             <span className="font-semibold">Tracely</span>
           </div>
           <div className="hidden md:block" />
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3 md:flex-none">
             <NotificationsBell
               notifications={notifications}
               unreadCount={unreadCount}
@@ -435,7 +437,7 @@ export function DashboardShell({ view }: { view: View }) {
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-900 text-[10px] font-semibold text-blue-100">
               {getInitials(displayName)}
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
+            <Button variant="outline" size="sm" onClick={handleLogout} className="px-2 sm:px-3">
               <LogOut className="mr-2 h-4 w-4" /> Logout
             </Button>
           </div>
@@ -454,7 +456,7 @@ export function DashboardShell({ view }: { view: View }) {
           ))}
         </div>
 
-        <main className="flex-1 p-4 pt-0 md:p-8 md:pt-0">
+        <main className="min-w-0 flex-1 p-3 pt-0 sm:p-4 sm:pt-0 md:p-8 md:pt-0">
           {view === "overview" && (
             <DashboardTab
               stats={stats}
@@ -481,6 +483,7 @@ export function DashboardShell({ view }: { view: View }) {
           {view === "issues" && (
             <IssuesTab
               issues={issues}
+              currentUserId={user.id}
               loading={issuesLoading}
               pagination={pagination}
               search={search}
@@ -520,6 +523,7 @@ export function DashboardShell({ view }: { view: View }) {
 
       <ViewIssueDialog
         issue={viewing}
+        currentUserId={user.id}
         onOpenChange={(open) => {
           if (!open) setViewing(null);
         }}
@@ -598,7 +602,17 @@ function SideLink({ view, active, icon }: { view: View; active: boolean; icon: R
   );
 }
 
-function ViewIssueDialog({ issue, onOpenChange, onEdit }: { issue: Issue | null; onOpenChange: (value: boolean) => void; onEdit: (issue: Issue) => void }) {
+function ViewIssueDialog({
+  issue,
+  currentUserId,
+  onOpenChange,
+  onEdit,
+}: {
+  issue: Issue | null;
+  currentUserId: string;
+  onOpenChange: (value: boolean) => void;
+  onEdit: (issue: Issue) => void;
+}) {
   return (
     <Dialog open={!!issue} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -633,7 +647,9 @@ function ViewIssueDialog({ issue, onOpenChange, onEdit }: { issue: Issue | null;
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-          {issue && <Button onClick={() => onEdit(issue)}><Pencil className="mr-2 h-4 w-4" /> Edit</Button>}
+          {issue && issue.user_id === currentUserId && (
+            <Button onClick={() => onEdit(issue)}><Pencil className="mr-2 h-4 w-4" /> Edit</Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -695,7 +711,7 @@ function IssueDialog({ open, onOpenChange, initial, onSubmit, submitting }: {
             <Label htmlFor="desc">Description</Label>
             <Textarea id="desc" value={description} onChange={(event) => setDescription(event.target.value)} rows={4} placeholder="Steps to reproduce, expected vs actual behavior..." />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Priority</Label>
               <Select value={priority} onValueChange={(value) => setPriority(value as Priority)}>

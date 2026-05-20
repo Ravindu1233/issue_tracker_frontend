@@ -169,14 +169,14 @@ export function ReportTab({ issues, loading }: { issues: Issue[]; loading: boole
   return (
     <div className="space-y-3">
       <Card>
-        <CardContent className="flex flex-col gap-3 p-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <CardContent className="flex flex-col gap-3 p-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Issue Report</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Performance summary</h1>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">Performance summary</h1>
             <p className="mt-1 text-sm text-muted-foreground">{fmtDate(start)} to {fmtDate(end)} - {days} day{days === 1 ? "" : "s"}</p>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex gap-1 rounded-md border bg-muted/30 p-1">
+          <div className="grid gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-end">
+            <div className="grid grid-cols-4 gap-1 rounded-md border bg-muted/30 p-1 sm:col-span-2 lg:flex">
               {[
                 { key: "7d", label: "7D" },
                 { key: "30d", label: "30D" },
@@ -186,7 +186,7 @@ export function ReportTab({ issues, loading }: { issues: Issue[]; loading: boole
                 <button
                   key={item.key}
                   onClick={() => applyPreset(item.key)}
-                  className={cn("rounded px-3 py-1 text-xs font-medium transition-colors", preset === item.key ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                  className={cn("rounded px-2 py-1 text-xs font-medium transition-colors sm:px-3", preset === item.key ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}
                 >
                   {item.label}
                 </button>
@@ -194,14 +194,14 @@ export function ReportTab({ issues, loading }: { issues: Issue[]; loading: boole
             </div>
             <div className="space-y-1">
               <Label htmlFor="r-start" className="text-xs text-muted-foreground">From</Label>
-              <Input id="r-start" type="date" value={start} max={end} onChange={(event) => { setStart(event.target.value); setPreset("custom"); }} className="h-9 w-[150px]" />
+              <Input id="r-start" type="date" value={start} max={end} onChange={(event) => { setStart(event.target.value); setPreset("custom"); }} className="h-9 w-full lg:w-[150px]" />
             </div>
             <div className="space-y-1">
               <Label htmlFor="r-end" className="text-xs text-muted-foreground">To</Label>
-              <Input id="r-end" type="date" value={end} min={start} max={today} onChange={(event) => { setEnd(event.target.value); setPreset("custom"); }} className="h-9 w-[150px]" />
+              <Input id="r-end" type="date" value={end} min={start} max={today} onChange={(event) => { setEnd(event.target.value); setPreset("custom"); }} className="h-9 w-full lg:w-[150px]" />
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={exportCsv}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+            <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
+              <Button size="sm" onClick={exportCsv} className="w-full lg:w-auto"><Download className="mr-2 h-4 w-4" />Export CSV</Button>
             </div>
           </div>
         </CardContent>
@@ -297,7 +297,7 @@ export function ReportTab({ issues, loading }: { issues: Issue[]; loading: boole
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardHeader className="flex flex-col gap-1 pb-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-base">Issue log</CardTitle>
             <p className="text-xs text-muted-foreground">{current.length} issue{current.length === 1 ? "" : "s"} in the selected range</p>
