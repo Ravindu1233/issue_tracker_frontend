@@ -92,6 +92,10 @@ const emptyPagination: Pagination = {
   hasPreviousPage: false,
 };
 
+function toCapitalText(value: string) {
+  return value.trim().toUpperCase();
+}
+
 function getInitials(name: string) {
   return name
     .trim()
@@ -693,7 +697,12 @@ function IssueDialog({ open, onOpenChange, initial, onSubmit, submitting }: {
       setError(parsed.error.issues[0].message);
       return;
     }
-    onSubmit({ title: title.trim(), description: description.trim(), priority, status });
+    onSubmit({
+      title: toCapitalText(title),
+      description: toCapitalText(description),
+      priority,
+      status,
+    });
   };
 
   return (
