@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as RegisterRouteImport } from "./routes/register";
+import { Route as SettingsRouteImport } from "./routes/settings";
 import { Route as LoginRouteImport } from "./routes/login";
+import { Route as ReportsRouteImport } from "./routes/reports";
+import { Route as IssuesRouteImport } from "./routes/issues";
 import { Route as ForgotPasswordRouteImport } from "./routes/forgot-password";
 import { Route as DashboardRouteImport } from "./routes/dashboard";
 import { Route as IndexRouteImport } from "./routes/index";
@@ -20,9 +23,24 @@ const RegisterRoute = RegisterRouteImport.update({
   path: "/register",
   getParentRoute: () => rootRouteImport,
 } as any);
+const SettingsRoute = SettingsRouteImport.update({
+  id: "/settings",
+  path: "/settings",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const LoginRoute = LoginRouteImport.update({
   id: "/login",
   path: "/login",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const ReportsRoute = ReportsRouteImport.update({
+  id: "/reports",
+  path: "/reports",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const IssuesRoute = IssuesRouteImport.update({
+  id: "/issues",
+  path: "/issues",
   getParentRoute: () => rootRouteImport,
 } as any);
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -45,38 +63,50 @@ export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/dashboard": typeof DashboardRoute;
   "/forgot-password": typeof ForgotPasswordRoute;
+  "/issues": typeof IssuesRoute;
   "/login": typeof LoginRoute;
+  "/reports": typeof ReportsRoute;
   "/register": typeof RegisterRoute;
+  "/settings": typeof SettingsRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/dashboard": typeof DashboardRoute;
   "/forgot-password": typeof ForgotPasswordRoute;
+  "/issues": typeof IssuesRoute;
   "/login": typeof LoginRoute;
+  "/reports": typeof ReportsRoute;
   "/register": typeof RegisterRoute;
+  "/settings": typeof SettingsRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
   "/dashboard": typeof DashboardRoute;
   "/forgot-password": typeof ForgotPasswordRoute;
+  "/issues": typeof IssuesRoute;
   "/login": typeof LoginRoute;
+  "/reports": typeof ReportsRoute;
   "/register": typeof RegisterRoute;
+  "/settings": typeof SettingsRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/dashboard" | "/forgot-password" | "/login" | "/register";
+  fullPaths: "/" | "/dashboard" | "/forgot-password" | "/issues" | "/login" | "/reports" | "/register" | "/settings";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/dashboard" | "/forgot-password" | "/login" | "/register";
-  id: "__root__" | "/" | "/dashboard" | "/forgot-password" | "/login" | "/register";
+  to: "/" | "/dashboard" | "/forgot-password" | "/issues" | "/login" | "/reports" | "/register" | "/settings";
+  id: "__root__" | "/" | "/dashboard" | "/forgot-password" | "/issues" | "/login" | "/reports" | "/register" | "/settings";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   DashboardRoute: typeof DashboardRoute;
   ForgotPasswordRoute: typeof ForgotPasswordRoute;
+  IssuesRoute: typeof IssuesRoute;
   LoginRoute: typeof LoginRoute;
+  ReportsRoute: typeof ReportsRoute;
   RegisterRoute: typeof RegisterRoute;
+  SettingsRoute: typeof SettingsRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -88,11 +118,32 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof RegisterRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/settings": {
+      id: "/settings";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof SettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/login": {
       id: "/login";
       path: "/login";
       fullPath: "/login";
       preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/reports": {
+      id: "/reports";
+      path: "/reports";
+      fullPath: "/reports";
+      preLoaderRoute: typeof ReportsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/issues": {
+      id: "/issues";
+      path: "/issues";
+      fullPath: "/issues";
+      preLoaderRoute: typeof IssuesRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/forgot-password": {
@@ -123,8 +174,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  IssuesRoute: IssuesRoute,
   LoginRoute: LoginRoute,
+  ReportsRoute: ReportsRoute,
   RegisterRoute: RegisterRoute,
+  SettingsRoute: SettingsRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

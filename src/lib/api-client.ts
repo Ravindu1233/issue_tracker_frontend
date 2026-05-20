@@ -64,9 +64,46 @@ export type IssueStats = {
   closed: number;
 };
 
+export type UserSettings = {
+  id: string;
+  user_id: string;
+  dark_mode: boolean;
+  show_notifications: boolean;
+  email_notifications: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AppNotification = {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string | null;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+  read_at: string | null;
+};
+
 type StatsResponse = {
   stats: Array<{ status: ApiIssue["status"]; total: number }>;
   totalIssues: number;
+};
+
+type ApiUserSettings = Omit<UserSettings, "id" | "user_id"> & {
+  id: number | string;
+  user_id: number | string;
+};
+
+type ApiNotification = Omit<AppNotification, "id" | "user_id"> & {
+  id: number | string;
+  user_id: number | string;
+};
+
+type NotificationsResponse = {
+  notifications: ApiNotification[];
+  unreadCount: number;
+  pagination: Pagination;
 };
 
 export type IssueListParams = {
@@ -150,6 +187,22 @@ function toLocalIssue(issue: ApiIssue): Issue {
     status: toLocalStatus(issue.status),
     created_at: issue.created_at,
     updated_at: issue.updated_at,
+  };
+}
+
+function toLocalSettings(settings: ApiUserSettings): UserSettings {
+  return {
+    ...settings,
+    id: String(settings.id),
+    user_id: String(settings.user_id),
+  };
+}
+
+function toLocalNotification(notification: ApiNotification): AppNotification {
+  return {
+    ...notification,
+    id: String(notification.id),
+    user_id: String(notification.user_id),
   };
 }
 
@@ -331,6 +384,47 @@ export async function saveIssue(
 export async function deleteIssue(_userId: string, id: string) {
   await apiRequest(`/issues/${id}`, {
     method: "DELETE",
+  });
+}
+
+export async function getSettings() {
+  const data = await apiRequest<{ settings: ApiUserSettings }>("/settings");
+  return toLocalSettings(data.settings);
+}
+
+export async function updateSettings(settings: Partial<Pick<UserSettings, "dark_mode" | "show_notifications" | "email_notifications">>) {
+  const data = await apiRequest<{ settings: ApiUserSettings }>("/settings", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+
+  return toLocalSettings(data.settings);
+}
+
+export async function listNotifications(params: { page?: number; limit?: number; unreadOnly?: boolean } = {}) {
+  const query = new URLSearchParams();
+  query.set("page", String(params.page ?? 1));
+  query.set("limit", String(params.limit ?? 20));
+  if (params.unreadOnly) query.set("unreadOnly", "true");
+
+  const data = await apiRequest<NotificationsResponse>(`/notifications?${query.toString()}`);
+
+  return {
+    notifications: data.notifications.map(toLocalNotification),
+    unreadCount: data.unreadCount,
+    pagination: data.pagination,
+  };
+}
+
+export async function markNotificationRead(id: string) {
+  await apiRequest(`/notifications/${id}/read`, {
+    method: "PATCH",
+  });
+}
+
+export async function markAllNotificationsRead() {
+  await apiRequest("/notifications/read-all", {
+    method: "PATCH",
   });
 }
 
