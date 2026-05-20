@@ -93,7 +93,8 @@ const emptyPagination: Pagination = {
 };
 
 function toCapitalText(value: string) {
-  return value.trim().toUpperCase();
+  const trimmed = value.trim();
+  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : "";
 }
 
 function getInitials(name: string) {
